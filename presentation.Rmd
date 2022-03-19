@@ -49,7 +49,8 @@ Abbreviations: GCS Glasgow Coma Scale, RR Respiratory Rate, SBP Systolic Blood P
 
 # What is missing data?
 
-- First bullet point
+- Data that was never collected
+- Data that was not available
 - Common in all study types
 
 # Why is missing data problematic?
@@ -109,6 +110,69 @@ Abbreviations: GCS Glasgow Coma Scale, RR Respiratory Rate, SBP Systolic Blood P
 > 
 > -- [@Papageorgiou2018] 
 
+# How can we tell different mechanisms apart?
+
+- We can't use only the data
+- Requires knowledge and reasoning about how the data was generated
+
+# How can missing data be managed?
+
+- Ignored
+- Complete case analysis
+- Single imputation
+- Multiple imputation
+- Sensitivity analyses (subgroups, best-worst case scenarios)
+- Other ways
+
+# How are missing data mechanisms and methods related?
+
+|                        | MCAR          | MAR       | MNAR            |
+|------------------------|---------------|-----------|-----------------|
+| Ignore                 | Bad idea      | Bad idea  | Bad idea        |
+| Complete case analysis | Loss of power | Biased    | Biased          |
+| Single imputation      | Probably okay | Biased    | Biased          |
+| Multiple imputation    | Okay          | Okay      | Probably biased |
+| Sensitivity analyses   | Not needed    | Good idea | Good idea       |
+
+# Why is ignoring missing data always a bad idea?
+
+Treating incomplete data as complete
+
+- Loss of control
+- Loss of denominator
+- Incomparable groups
+- Unknown precision
+
+# Can we interpret results based on ignored missing data?
+
+```{r, cache=TRUE, include=FALSE}
+get_results <- function(x, y, data) {
+    print(x)
+    model.data <- data.frame(y = data[, y], data[, x])
+    model <- glm(y ~ ., data = model.data, family = binomial())
+    pe <- c(model$coefficients[-1])
+    ci <- as.matrix(confint(model)[-1, ])
+    if (length(x) == 1)
+        ci <- t(ci)
+    v <- round(exp(cbind(pe, ci)), 3)
+    pv <- paste0(v[, 1], " (", v[, 2], "-", v[, 3], ")")
+    return(pv)
+}
+models.data <- table.data
+models.data$Died <- as.numeric(models.data$Died == "Yes")
+variables <- setNames(nm = c("Age", "Sex", "SBP", "RR", "GCS"))
+unadjusted.results <- unlist(lapply(variables, get_results, y = "Died", data = models.data))
+adjusted.results <- get_results(variables, "Died", data = models.data)
+combined <- as.data.frame(cbind(unadjusted.results, adjusted.results))
+names(combined) <- c("Unadjusted OR (95% CI)", "Adjusted OR (95% CI)")
+```
+
+```{r, echo=FALSE, results="asis"}
+knitr::kable(combined, caption = "Unadjusted and adjusted associations between variables and mortality")
+```
+Abbreviations: GCS Glasgow Coma Scale, OR Odds Ratio, RR Respiratory Rate, SBP Systolic Blood Pressure
+
+
 # How is missing data represented in different software?
 
 | Software               | Missing data representation |
@@ -128,5 +192,7 @@ Abbreviations: GCS Glasgow Coma Scale, RR Respiratory Rate, SBP Systolic Blood P
 - For example, given this vector of systolic blood pressures: `120,
   90, 90, NA, 110`, to calculate a mean Google Sheets, STATA, and SPSS
   would return `102.5` whereas R would return `NA`.
+
+# What is multiple imputation?
 
 # References
