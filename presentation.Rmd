@@ -3,12 +3,59 @@
 ## Rscript -e "rmarkdown::render('presentation.Rmd')"
 title: Missing Data
 author: Martin Gerdin Wärnberg
+date: 2022-03-21
 output: beamer_presentation
 ---
 
-# What Is Missing Data?
+# Reviewer comment
+
+> As the authors state, half the patients were excluded as a result of
+> missing data. Did these patients differ from the patients who were
+> included with regard to age, gender mechanism of injury, severity of
+> TBI, etc?
+
+# What is missing data?
 
 - First bullet point
-- Second bullet point
+- Common in all study types
 
-# 
+# Why is missing data problematic?
+
+- Lower statistical power
+- Loss of key subgroups
+- Biased or inaccurate estimates
+- Increased analysis complexity
+
+# What can be done about missing data?
+
+- Avoid it
+- Manage it appropriately
+- Conduct sensitivity analyses
+
+# What are the different missing data mechanisms?
+
+- Missing completely at random (MCAR)
+- Missing at random (MAR)
+- Missing not at random (MNAR)
+
+# What is MCAR?
+
+# What is MAR?
+
+# What is MNAR?
+
+# How is missing data represented in different software?
+
+
+# How do software deal with missing data?
+
+- Google sheets (Excel?) ignores missing data
+- STATA
+- SPSS
+- R
+
+```{r, echo=FALSE}
+library(knitr)
+library()
+
+```
