@@ -1,9 +1,14 @@
 ---
+## Compile with
+## Rscript -e "rmarkdown::render('presentation.Rmd')"
 title: Missing Data
 author: Martin Gerdin Wärnberg
 output: beamer_presentation
 ---
 
 # What Is Missing Data?
+
+- First bullet point
+- Second bullet point
 
 # 
