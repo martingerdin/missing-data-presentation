@@ -5,6 +5,8 @@ title: Missing Data
 author: Martin Gerdin Wärnberg
 date: 2022-03-21
 output: beamer_presentation
+bibliography: bibliography.bib
+csl: chicago-author-date.csl
 ---
 
 # Reviewer comment
@@ -13,6 +15,37 @@ output: beamer_presentation
 > missing data. Did these patients differ from the patients who were
 > included with regard to age, gender mechanism of injury, severity of
 > TBI, etc?
+
+# What does the reviewer want?
+
+```{r, cache=TRUE, include=FALSE}
+data <- rio::import("https://raw.githubusercontent.com/titco/titco-I/master/titco-I-full-dataset-v1.csv")
+vars <- c("age", "sex", "sbp_1", "rr_1", "gcs_t_1", "died")
+strata <- "complete"
+table.data <- data[, vars]
+table.data$age <- as.numeric(table.data$age)
+names <- c("Age", "Sex", "SBP", "RR", "GCS", "Died")
+names(table.data) <- names
+nonnormal <- names[sapply(table.data, is.numeric)]
+table.data$complete <- complete.cases(table.data)
+table.data$complete <- factor(table.data$complete,
+                              levels = c(TRUE, FALSE),
+                              labels = c("Complete", "Incomplete"))
+table <- print(tableone::CreateTableOne(vars = names,
+                                        data = table.data,
+                                        strata = strata,
+                                        test = FALSE),
+               nonnormal = nonnormal,
+               showAllLevels = TRUE,
+               catDigits = 0,
+               contDigits = 0)
+attr(table, which = "dimnames")$`Stratified by complete`[1] <- "Level"
+```
+
+```{r, echo=FALSE, results="asis"}
+knitr::kable(table, caption = "Comparison of complete and incomplete observations")
+```
+Abbreviations: GCS Glasgow Coma Scale, RR Respiratory Rate, SBP Systolic Blood Pressure
 
 # What is missing data?
 
@@ -40,22 +73,60 @@ output: beamer_presentation
 
 # What is MCAR?
 
+> **Observations of all subjects are equally likely to be
+> missing**. That is, there are no systematic differences between
+> subjects with observed and unobserved values meaning that the
+> observed values can be treated as a random sample of the
+> population. For example, echocardiographic measurements might be
+> missing due to sporadic ultrasound malfunction.
+>
+> -- [@Papageorgiou2018]
+
 # What is MAR?
+
+> **The likelihood of a value to be missing depends on other, observed
+> variables**. Hence, any systematic difference between missing and
+> observed values can be attributed to observed data. That is, the
+> relationships observed in the data at hand can be utilized to
+> ‘recover’ the missing data. For example, missing echocardiographic
+> measurements might be more normal than the observed ones because
+> younger patients are more likely to miss an appointment.
+> 
+> -- [@Papageorgiou2018] 
 
 # What is MNAR?
 
+> **The likelihood to be missing depends on the (unobserved) value
+> itself**, and thus, systematic differences between the missing and
+> the observed values remain, even after accounting for all other
+> available information. In other words, there is extra information
+> associated with the missing data that cannot be recovered by
+> utilizing the relationships observed in the data. For example,
+> missing echocardiographic measurements might be worse than the
+> observed ones because patients with severe valve disease are more
+> likely to miss a clinic visit because they are unable to visit the
+> hospital.
+> 
+> -- [@Papageorgiou2018] 
+
 # How is missing data represented in different software?
 
+| Software               | Missing data representation |
+|------------------------|-----------------------------|
+| Google Sheets (Excel?) |                             |
+| STATA                  | ., .a-.z                    |
+| SPSS                   | .                           |
+| R                      | NA                          |
 
 # How do software deal with missing data?
 
-- Google sheets (Excel?) ignores missing data
-- STATA
-- SPSS
-- R
+- Google Sheets (Excel?), STATA and SPSS will in most cases ignore
+  missing data and use only the observed data to calculate some
+  metric.
+- R will in most cases return NA if you try to calculate some metric
+  using data that includes missing values.
+- For example, given this vector of systolic blood pressures: `120,
+  90, 90, NA, 110`, to calculate a mean Google Sheets, STATA, and SPSS
+  would return `102.5` whereas R would return `NA`.
 
-```{r, echo=FALSE}
-library(knitr)
-library()
-
-```
+# References
