@@ -1,0 +1,9 @@
+---
+title: Missing Data
+author: Martin Gerdin Wärnberg
+output: beamer_presentation
+---
+
+# What Is Missing Data?
+
+# 
