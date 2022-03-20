@@ -119,7 +119,9 @@ Abbreviations: GCS Glasgow Coma Scale, RR Respiratory Rate, SBP Systolic Blood P
 
 - Ignored
 - Complete case analysis
-- Single imputation
+- Mean imputation
+- Single or deterministic imputation
+- Stochastic imputation
 - Multiple imputation
 - Sensitivity analyses (subgroups, best-worst case scenarios)
 - Other ways
@@ -128,13 +130,15 @@ Abbreviations: GCS Glasgow Coma Scale, RR Respiratory Rate, SBP Systolic Blood P
 
 |                        | MCAR          | MAR       | MNAR            |
 |------------------------|---------------|-----------|-----------------|
-| Ignore                 | Bad idea      | Bad idea  | Bad idea        |
+| Ignore                 | Loss of power | Bad idea  | Bad idea        |
 | Complete case analysis | Loss of power | Biased    | Biased          |
-| Single imputation      | Probably okay | Biased    | Biased          |
+| Mean imputation        | Biased        | Biased    | Biased          |
+| Single imputation      | Biased        | Biased    | Biased          |
+| Stochastic imputation  | Probably okay | Biased    | Biased          |
 | Multiple imputation    | Okay          | Okay      | Probably biased |
 | Sensitivity analyses   | Not needed    | Good idea | Good idea       |
 
-# Why is ignoring missing data always a bad idea?
+# Why is ignoring missing data a bad idea?
 
 Treating incomplete data as complete
 
@@ -143,11 +147,10 @@ Treating incomplete data as complete
 - Incomparable groups
 - Unknown precision
 
-# Can we interpret results based on ignored missing data?
+# How can we interpret results based on ignored missing data?
 
 ```{r, cache=TRUE, include=FALSE}
 get_results <- function(x, y, data) {
-    print(x)
     model.data <- data.frame(y = data[, y], data[, x])
     model <- glm(y ~ ., data = model.data, family = binomial())
     pe <- c(model$coefficients[-1])
@@ -155,23 +158,46 @@ get_results <- function(x, y, data) {
     if (length(x) == 1)
         ci <- t(ci)
     v <- round(exp(cbind(pe, ci)), 3)
-    pv <- paste0(v[, 1], " (", v[, 2], "-", v[, 3], ")")
+    pv <- c(n = nrow(model$model), est = paste0(v[, 1], " (", v[, 2], "-", v[, 3], ")"))
     return(pv)
 }
 models.data <- table.data
 models.data$Died <- as.numeric(models.data$Died == "Yes")
-variables <- setNames(nm = c("Age", "Sex", "SBP", "RR", "GCS"))
-unadjusted.results <- unlist(lapply(variables, get_results, y = "Died", data = models.data))
-adjusted.results <- get_results(variables, "Died", data = models.data)
-combined <- as.data.frame(cbind(unadjusted.results, adjusted.results))
-names(combined) <- c("Unadjusted OR (95% CI)", "Adjusted OR (95% CI)")
+create_table <- function(data, include.n = TRUE) {
+    variables <- setNames(nm = c("Age", "Sex", "SBP", "RR", "GCS"))
+    unadjusted.results <- do.call(rbind, lapply(variables, get_results, y = "Died", data = data))
+    adjusted.results <- get_results(variables, "Died", data = data)
+    adjusted.n <- adjusted.results["n"]
+    if (!include.n)
+        unadjusted.results <- unadjusted.results[, -1]
+    combined <- as.data.frame(cbind(unadjusted.results, adjusted.results[-1]))
+    if (include.n)
+        names(combined) <- c("n^a^", "Unadjusted OR (95% CI)", "Adjusted OR (95% CI)^b^")
+    if (!include.n)
+        names(combined) <- c("Unadjusted OR (95% CI)", "Adjusted OR (95% CI)")
+    attr(combined, "adjusted.n") <- adjusted.n
+    return(combined)
+}
+ignored.table <- create_table(models.data)
 ```
 
 ```{r, echo=FALSE, results="asis"}
-knitr::kable(combined, caption = "Unadjusted and adjusted associations between variables and mortality")
+knitr::kable(ignored.table, caption = "Unadjusted and adjusted associations between variables and mortality")
 ```
 Abbreviations: GCS Glasgow Coma Scale, OR Odds Ratio, RR Respiratory Rate, SBP Systolic Blood Pressure
 
+Notes: ^a^The number of complete observations per variable. ^b^The number of complete cases used in the adjusted model was `r attr(ignored.table, "adjusted.n")`.
+
+# How can we interpret results based on complete data (complete case analysis)?
+
+```{r, include=FALSE}
+complete.data <- models.data[complete.cases(models.data), ]
+complete.table <- create_table(complete.data, include.n = FALSE)
+```
+
+```{r, echo=FALSE, results="asis"}
+knitr::kable(complete.table, caption = paste0("Unadjusted and adjusted associations between variables and mortality (n = ", attr(complete.table, "adjusted.n"), ")"))
+```
 
 # How is missing data represented in different software?
 
@@ -192,7 +218,168 @@ Abbreviations: GCS Glasgow Coma Scale, OR Odds Ratio, RR Respiratory Rate, SBP S
 - For example, given this vector of systolic blood pressures: `120,
   90, 90, NA, 110`, to calculate a mean Google Sheets, STATA, and SPSS
   would return `102.5` whereas R would return `NA`.
+- When doing some regression, STATA, SPSS, and R all default to a
+  complete case analysis.
+
+# What is mean imputation?
+
+- Missing values are replaced with the mean of the observed data, for
+example `120, 90, 90, NA, 110` would become `120, 90, 90, 102.5, 110`.n
+-  Artificial reduction in variability.
+
+# What is single or deterministic imputation?
+
+- Missing values are replaced with the predicted scores from a regression equation.
+
+\pause
+```{r, echo=FALSE, results="asis"}
+mini.data <- head(models.data)[-7]
+mini.data$GCS[is.na(mini.data$GCS)] <- 11
+knitr::kable(mini.data)
+```
+
+\pause
+- Impute RR as:
+
+$\bar{RR} = \beta_0 + \beta_1 Age + \beta_2 Sex + \beta_3 SBP + \beta_ 4 GCS + \beta_5 Died$
+
+# What is single or deterministic imputation?
+
+- Running that linear regression results in:
+
+```{r, include=FALSE}
+rr.model <- glm(RR ~ Age + Sex + SBP + GCS + Died, data = complete.data)
+coefficients <- as.list(round(rr.model$coefficients, 2))
+names(coefficients)[1] <- "b0"
+rr1 <- round(predict(rr.model, newdata = mini.data[2, ]))
+rr2 <- round(predict(rr.model, newdata = mini.data[5, ]))
+attach(coefficients)
+```
+
+$\bar{RR} = `r b0` + `r Age`\cdot Age + `r SexMale`\cdot Sex + `r SBP`\cdot SBP + `r GCS`\cdot GCS + `r Died`\cdot Died$
+
+\pause
+- Meaning that for this patient:
+
+```{r, echo=FALSE, results="asis"}
+knitr::kable(mini.data[2, ], row.names = FALSE)
+```
+
+\pause
+- We could estimate the missing RR as: 
+
+$\bar{RR} = `r b0` + `r Age`\cdot 21 + `r SexMale`\cdot 1 + `r SBP`\cdot 110 + `r GCS`\cdot 11 + `r Died`\cdot 0 \approx 19$
+
+# What is stochastic imputation?
+
+- Improves on the single imputation by adding random noise.
+  - Single imputation too perfect, amplifies associations (even under MCAR). 
+
+\pause
+- The modified regression equation:
+$\bar{RR} = \beta_0 + \beta_1 Age + \beta_2 Sex + \beta_3 SBP + \beta_ 4 GCS + \beta_5 Died + \epsilon$
+
+- Where $\epsilon$ is the noise term.
 
 # What is multiple imputation?
+
+> **The purpose of multiple imputation is to generate possible values
+> for missing values, thus creating several "complete" sets of
+> data**. Analytic procedures that work with multiple imputation
+> datasets produce output for each "complete" dataset, plus pooled
+> output that estimates what the results would have been if the
+> original dataset had no missing values. These pooled results are
+> generally more accurate than those provided by single imputation
+> methods.
+> 
+> -- [@SPSS]
+
+# What is multiple imputation?
+
+- While less perfect than single imputation, stochastic imputation still does not incorporate the uncertainty associated with missing data.
+- Multiple imputation uses stochastic imputation iteratively.
+- Creates multiple complete datasets.
+- Each imputed dataset is analysed using standard methods.
+- The results from all analyses are pooled to create a combined estimate. 
+
+# What is multiple imputation?
+
+- You need to decide:
+  - How many imputed datasets to create (M).
+  - How each variable with missing data should be imputed.
+  - What variables to include in the imputation model.
+- The defaults:
+  - 5 imputed datasets ($M = 5$). Some implementations use 20 ($M = 20$)
+  - Logistic regression for binary variables, linear regression for
+    continuous variables.
+- More missing data, greater uncertainty, increase M (maybe same as % missingness).
+
+# How is multiple imputation implemented?
+
+- STATA: `mi`
+- SPSS: `Analyze > Multiple Imputation > Impute Missing Data Values...`
+- R: `mice`
+
+# Some practical advice
+
+- Unless technically inclined, use complete case analysis.
+- Document the amount of missing values in each variable of interest (table).
+- Document the number of observations (patients) before incomplete.
+  cases were removed, and the number of observations remaining.
+- Show how you went from the original data to the study sample (flowchart).
+- Present missing data in the first paragraph in Results.
+- Include a table (supplementary material?) comparing complete and incomplete observations.
+- Acknowledge possible biases and reflect on these in Limitations.
+
+# Missing values table
+
+```{r, echo=FALSE, results="asis"}
+missing.data <- as.data.frame(do.call(rbind, lapply(models.data[, -7], function(x) c(sum(is.na(x)), round(mean(is.na(x)) * 100, 1)))))
+names(missing.data) <- c("n", "%")
+knitr::kable(missing.data, caption = "Missing values per variable of interest")
+```
+Abbreviations: GCS Glasgow Coma Scale, RR Respiratory Rate, SBP Systolic Blood Pressure
+
+# Flowchart
+
+```{r, engine="dot", echo=FALSE, fig.cap="Study flowchart"}
+digraph {
+    node [ shape = rect, fontname = "Computer Modern" ]
+
+    rankdir = "LR";
+    splines = false;
+    nodesep = 0.5;
+    
+    a [ label = "16 000 patients in original cohort"]
+    a1 [ width = 0, shape = point, style = invis ]
+    b [ label = "8 000 patients aged 15 or older years"]
+    b1 [ width = 0, shape = point, style = invis ]
+    c [ label = "5 000 patient had complete data\n and constituted the final sample"]
+    e1 [ label = "8 000 patients excluded because\n they were younger than 15 years" ]
+    e2 [ label = "3 000 patients excluded because\n they had missing data*:\n-21 patients had missing age\n-1800 patients had missing SBP\n-1200 patients had missing RR\n-400 patients had missing GCS"]
+
+    a -> a1 [ dir = none ];
+    a1 -> e1;
+    a1 -> b;
+    b -> b1 [ dir = none ];
+    b1 -> e2;
+    b1 -> c;
+
+    {
+	rank = same;
+	a; a1; b; b1; c;
+    }
+}
+```
+
+Note: *The sum of missing values may exceed the total number of patients with incomplete data because some patients have missing values in multiple variables.
+
+# Table comparing complete and incomplete observations
+
+```{r, echo=FALSE, results="asis"}
+knitr::kable(table, caption = "Comparison of complete and incomplete observations")
+```
+Abbreviations: GCS Glasgow Coma Scale, RR Respiratory Rate, SBP Systolic Blood Pressure
+
 
 # References
