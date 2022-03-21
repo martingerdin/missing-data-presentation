@@ -2,6 +2,7 @@
 ## Compile with
 ## Rscript -e "rmarkdown::render('presentation.Rmd')"
 title: Missing Data
+subtitle: https://github.com/martingerdin/missing-data-presentation
 author: Martin Gerdin Wärnberg
 date: 2022-03-21
 output: beamer_presentation
